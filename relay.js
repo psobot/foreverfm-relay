@@ -6,7 +6,9 @@ var config = {
     max_monthly_transfer: 1099511627776,  // 1TB
     relay_provider: "Peter Sobot",
     relay_attribution_link: "http://psobot.com",
-    relay_location: "New York, NY"
+    relay_location: "New York, NY",
+    port: 8194,
+    timeout: 1000 // ms
 };
 
 var http = require('http');
@@ -20,14 +22,14 @@ var daemon = require("daemonize2").setup({
 var options = {
     hostname: "forever.fm",
     path: "/all.mp3",
+    port: 80,
     headers: {
       "Connection": "keep-alive",
-      'User-Agent': 'foreverfm-relay 0.1'
+      'User-Agent': 'foreverfm-relay',
+      'X-Relay-Port': config.port
     }
 };
-var port = 8192;
 var listeners = [];
-var timeout = 1000; // ms
 var bytes_in_month = 0;
 var bytes_out_month = 0;
 var started = +new Date;
@@ -72,7 +74,7 @@ var listen = function(callback) {
     req = http.request(options, function (res) {
         if ( res.statusCode != 200 ) {
             winston.error("OH NOES: Got a " + res.statusCode);
-            setTimeout(function(){listen(callback)}, timeout);
+            setTimeout(function(){listen(callback)}, config.timeout);
         } else {
             winston.info("Listening to generator!")
             res.on('data', function (buf) {
@@ -96,7 +98,7 @@ var listen = function(callback) {
             res.on('end', function () {
                 if ( !transfer_exceeded() ) {
                     winston.error("Stream ended! Restarting listener...");
-                    setTimeout(function(){listen(function(){})}, timeout);
+                    setTimeout(function(){listen(function(){})}, config.timeout);
                 }
             });
             if (typeof callback != "undefined") callback();
@@ -181,7 +183,7 @@ var run = function() {
         } catch (err) {
             winston.error(err);
         }
-    }).listen(port);
+    }).listen(config.port);
 }
 
 switch (process.argv[2]) {
