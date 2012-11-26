@@ -7,7 +7,7 @@ var config = {
     relay_provider: "Peter Sobot",
     relay_attribution_link: "http://psobot.com",
     relay_location: "New York, NY",
-    port: 8194,
+    port: process.env.PORT || 8192,
     timeout: 1000 // ms
 };
 
