@@ -2,8 +2,8 @@
 //  Simple, lightweight, untested.
 
 var config = {
-    listener_limit: 1,   //  Each listener uses between 25 and 35 kilobytes per second.
-    max_monthly_transfer: 1099511627776,  // 1TB
+    listener_limit: 200,   //  Each listener uses between 25 and 35 kilobytes per second.
+    max_monthly_transfer: 2*1099511627776,  // 1TB
 
     //  Attribution
     relay_provider: "Peter Sobot",
