@@ -4,9 +4,16 @@
 var config = {
     listener_limit: 1,   //  Each listener uses between 25 and 35 kilobytes per second.
     max_monthly_transfer: 1099511627776,  // 1TB
+
+    //  Attribution
     relay_provider: "Peter Sobot",
     relay_attribution_link: "http://psobot.com",
     relay_location: "New York, NY",
+
+    //  Relay backreferencing
+    relay_url: "http://relay00.forever.fm",
+    relay_port: 80,
+
     port: process.env.PORT || 8192,
     timeout: 1000 // ms
 };
@@ -26,7 +33,8 @@ var options = {
     headers: {
       "Connection": "keep-alive",
       'User-Agent': 'foreverfm-relay',
-      'X-Relay-Port': config.port
+      'X-Relay-Addr': config.relay_url,
+      'X-Relay-Port': config.relay_port
     }
 };
 var listeners = [];
