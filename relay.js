@@ -11,11 +11,15 @@ var config = {
     relay_location: "New York, NY",
 
     //  Relay backreferencing
-    relay_url: "http://relay00.forever.fm",
-    relay_port: 80,
+    relay_url: process.env.RELAY_URL || "http://relay00.forever.fm",
+    relay_port: process.env.PORT || 80,
 
     port: process.env.PORT || 8192,
-    timeout: 1000 // ms
+    timeout: 1000, // ms
+
+    //  Heroku Only
+    heartbeat_required: true,
+    heartbeat_interval: 30 * 1000
 };
 
 var http = require('http');
@@ -27,7 +31,7 @@ var daemon = require("daemonize2").setup({
 });
 
 var options = {
-    hostname: "forever.fm",
+    hostname: process.env.URL || "forever.fm",
     path: "/all.mp3",
     port: 80,
     headers: {
@@ -144,10 +148,25 @@ var available = function(response) {
     return true;
 }
 
+var prune = function() {
+    limit = (+new Date) - config.heartbeat_interval;
+    remove = [];
+    for (l in listeners) {
+        if (listeners[l].last_heartbeat && listeners[l].last_heartbeat < limit) {
+            remove.push(listeners[l]);
+        }
+    }
+    for (r in remove) remove[r].end();
+}
+
 var run = function() {
     winston.info("Starting server.")
+
+    if ( config.heartbeat_required ) setInterval( prune, config.heartbeat_interval );
+
     http.createServer(function(request, response) {
         request.ip = ipof(request);
+        response.ip = request.ip;
         try {
             switch (request.url) {
                 case "/all.mp3":
@@ -168,7 +187,6 @@ var run = function() {
                         case "HEAD":
                             if (available(response)) {
                                 response.writeHead(200, {'Content-Type': 'audio/mpeg'});
-                                winston.info("Ending HEAD.");
                                 response.end();
                             }
                             break;
@@ -185,8 +203,18 @@ var run = function() {
                     }));
                     response.end();
                     break;
-                case "/favicon.ico":
+                default:
+                    if ( config.heartbeat_required ) {
+                        for (l in listeners) {
+                            if (listeners[l].ip == request.ip) {
+                                listeners[l].last_heartbeat = (+new Date);
+                                break;
+                            }
+                        }
+                    }
+                    response.writeHead(200);
                     response.end();
+                    break;
             }
         } catch (err) {
             winston.error(err);
