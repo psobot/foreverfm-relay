@@ -23,6 +23,7 @@ var config = {
 };
 
 var http = require('http');
+var fs = require('fs');
 var winston = require('winston');
 var daemon = require("daemonize2").setup({
     main: "relay.js",
@@ -50,6 +51,11 @@ var peaks = {
     listeners: 0,
     bytes_out_month: 0
 };
+
+var crossdomain = "";
+fs.readFile('./crossdomain.xml', function(error, content) {
+    if (!error) crossdomain = content;
+});
 
 var __transfer_exceeded = false;
 var transfer_exceeded = function() {
@@ -201,6 +207,11 @@ var run = function() {
                         config: config,
                         peaks: peaks
                     }));
+                    response.end();
+                    break;
+                case "/crossdomain.xml":
+                    response.writeHead(200, {'Content-Type': 'text/xml'});
+                    response.write(crossdomain);
                     response.end();
                     break;
                 default:
