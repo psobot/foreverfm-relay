@@ -12,7 +12,7 @@ var config = {
 
     //  Relay backreferencing
     relay_url: process.env.RELAY_URL || "http://relay00.forever.fm",
-    relay_port: process.env.PORT || 80,
+    relay_port: 80,
 
     port: process.env.PORT || 8192,
     timeout: 1000, // ms
