@@ -2,9 +2,9 @@
     "listener_limit": 200,
     "max_monthly_transfer": 2199023255552,
 
-    "relay_provider": "Peter Sobot",
-    "relay_attribution_link": "http://psobot.com",
-    "relay_location": "New York, NY",
+    "relay_provider": "Heroku",
+    "relay_attribution_link": "http://heroku.com",
+    "relay_location": "Heroku",
 
     "relay_url": "http://relay00.forever.fm",
     "relay_port": 80,

@@ -156,8 +156,14 @@ var prune = function() {
             remove.push(listeners[l]);
         }
     }
-    if (remove.length > 0) logger.info("Removing " + remove.length + " listeners due to heartbeat failure.");
-    for (r in remove) remove[r].end();
+    if (remove.length > 0)
+        logger.info("Removing " + remove.length + " listeners due to heartbeat failure.");
+
+    for (r in remove) {
+        remove[r].end();
+        logger.info("Forcibly removing listener: " + remove[r].ip);
+        listeners.splice(listeners.indexOf(remove[r]), 1);
+    }
 }
 
 var save = function() {
