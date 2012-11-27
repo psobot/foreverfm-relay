@@ -1,0 +1,9 @@
+{
+    "bytes_in_month": 0,
+    "bytes_out_month": 0,
+    "month": -1,
+    "peaks": {
+        "listeners": 0,
+        "bytes_out_month": 0
+    }
+}

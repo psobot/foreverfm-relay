@@ -1,26 +1,8 @@
 //  Forever.fm relay server
 //  Simple, lightweight, untested.
 
-var config = {
-    listener_limit: 200,   //  Each listener uses between 25 and 35 kilobytes per second.
-    max_monthly_transfer: 2*1099511627776,  // 1TB
-
-    //  Attribution
-    relay_provider: "Peter Sobot",
-    relay_attribution_link: "http://psobot.com",
-    relay_location: "New York, NY",
-
-    //  Relay backreferencing
-    relay_url: process.env.RELAY_URL || "http://relay00.forever.fm",
-    relay_port: 80,
-
-    port: process.env.PORT || 8192,
-    timeout: 1000, // ms
-
-    //  Heroku Only
-    heartbeat_required: true,
-    heartbeat_interval: 30 * 1000
-};
+var config = require('./config.json');
+var stats = require('./stats.json');
 
 var http = require('http');
 var fs = require('fs');
@@ -38,19 +20,13 @@ var options = {
     headers: {
       "Connection": "keep-alive",
       'User-Agent': 'foreverfm-relay',
-      'X-Relay-Addr': config.relay_url,
+      'X-Relay-Addr': process.env.RELAY_URL || config.relay_url,
       'X-Relay-Port': config.relay_port
     }
 };
 var listeners = [];
-var bytes_in_month = 0;
-var bytes_out_month = 0;
 var started = +new Date;
-var month = (new Date()).getMonth();
-var peaks = {
-    listeners: 0,
-    bytes_out_month: 0
-};
+if (stats.month < 0) stats.month = (new Date()).getMonth()
 
 var crossdomain = "";
 fs.readFile('./crossdomain.xml', function(error, content) {
@@ -60,27 +36,45 @@ fs.readFile('./crossdomain.xml', function(error, content) {
 var __transfer_exceeded = false;
 var transfer_exceeded = function() {
     cur_month = (new Date()).getMonth();
-    if (month != cur_month) {
-        month = cur_month;
-        bytes_out_month = 0;
-        bytes_in_month = 0;
+    if (stats.month != cur_month) {
+        stats.month = cur_month;
+        stats.bytes_out_month = 0;
+        stats.bytes_in_month = 0;
     }
-    __transfer_exceeded = bytes_out_month > config.max_monthly_transfer;
+    __transfer_exceeded = stats.bytes_out_month > config.max_monthly_transfer;
     return __transfer_exceeded;
 }
 
-winston.level = 'log';
-winston.add(winston.transports.File, { filename: 'relay.log', handleExceptions: true });
+var logger = new (winston.Logger)({
+    transports: [
+        new winston.transports.Console(
+            {
+                colorize: true,
+                timestamp: true,
+                handleExceptions: true
+            }),
+        new winston.transports.File(
+            {
+                level: 'info',
+                colorize: false,
+                timestamp: true,
+                json: false,
+                filename: 'relay.log',
+                handleExceptions: true
+            })
+    ]
+});
 
 var check = function(callback) {
-    winston.info("Attempting to connect to generator...");
+    logger.info("Attempting to connect to generator...");
+
     check_opts = {'method': 'HEAD'};
     for (var a in options) check_opts[a] = options[a];
     req = http.request(check_opts, function (res) {
         if ( res.statusCode != 200 && res.statusCode != 405 ) {
-            winston.error("OH NOES: Got a " + res.statusCode);
+            logger.error("OH NOES: Got a " + res.statusCode);
         } else {
-            winston.info("Got response back from generator!")
+            logger.info("Got response back from generator!")
             if (typeof callback != "undefined") callback();
         }
     })
@@ -88,34 +82,34 @@ var check = function(callback) {
 }
 
 var listen = function(callback) {
-    winston.info("Attempting to listen to generator...");
+    logger.info("Attempting to listen to generator...");
     req = http.request(options, function (res) {
         if ( res.statusCode != 200 ) {
-            winston.error("OH NOES: Got a " + res.statusCode);
+            logger.error("OH NOES: Got a " + res.statusCode);
             setTimeout(function(){listen(callback)}, config.timeout);
         } else {
-            winston.info("Listening to generator!")
+            logger.info("Listening to generator!")
             res.on('data', function (buf) {
                 try {
-                    bytes_in_month += buf.length
+                    stats.bytes_in_month += buf.length
                     for (l in listeners) {
                         listeners[l].write(buf);
-                        bytes_out_month += buf.length;
-                        if (peaks['bytes_out_month'] < bytes_out_month)
-                            peaks['bytes_out_month'] = bytes_out_month;
+                        stats.bytes_out_month += buf.length;
+                        if (stats.peaks.bytes_out_month < stats.bytes_out_month)
+                            stats.peaks.bytes_out_month = stats.bytes_out_month;
                     }
                     if ( __transfer_exceeded ) {
-                        winston.error("Maximum uplink exceeded! Shutting off.");
+                        logger.error("Maximum uplink exceeded! Shutting off.");
                         for (l in listeners) listeners[l].end();
                         req.destroy();
                     }
                 } catch (err) {
-                    winston.error("Could not send to listeners: " + err);
+                    logger.error("Could not send to listeners: " + err);
                 }
             });
             res.on('end', function () {
                 if ( !transfer_exceeded() ) {
-                    winston.error("Stream ended! Restarting listener...");
+                    logger.error("Stream ended! Restarting listener...");
                     setTimeout(function(){listen(function(){})}, config.timeout);
                 }
             });
@@ -140,13 +134,13 @@ var ipof = function(req) {
 
 var available = function(response) {
     if ( transfer_exceeded() ) {
-        winston.error("Max transfer exceeded: returning 301.");
+        logger.error("Max transfer exceeded: returning 301.");
         response.writeHead(301, {'Location': "http://" + options.hostname + options.path})
         response.end();
         return false;
     }
     if ( listeners.length + 1 > config.listener_limit ) {
-        winston.error("Listener limit exceeded: returning 503.");
+        logger.error("Listener limit exceeded: returning 503.");
         response.writeHead(503);
         response.end();
         return false;
@@ -162,13 +156,22 @@ var prune = function() {
             remove.push(listeners[l]);
         }
     }
+    if (remove.length > 0) logger.info("Removing " + remove.length + " listeners due to heartbeat failure.");
     for (r in remove) remove[r].end();
 }
 
+var save = function() {
+    fs.writeFile("./stats.json", JSON.stringify(stats), function(err) {
+        if (err) logger.error("Could not save statistics due to: " + err);
+        else logger.info("Saved statistics.");
+    });
+}
+
 var run = function() {
-    winston.info("Starting server.")
+    logger.info("Starting server.")
 
     if ( config.heartbeat_required ) setInterval( prune, config.heartbeat_interval );
+    setInterval( save, config.save_interval );
 
     http.createServer(function(request, response) {
         request.ip = ipof(request);
@@ -181,13 +184,13 @@ var run = function() {
                             if (available(response)) { 
                                 response.writeHead(200, {'Content-Type': 'audio/mpeg'});
                                 response.on('close', function () {
-                                    winston.info("Removed listener: " + request.ip);
+                                    logger.info("Removed listener: " + request.ip);
                                     listeners.splice(listeners.indexOf(response), 1);
                                 });
                                 listeners.push(response);
-                                if (peaks['listeners'] < listeners.length)
-                                    peaks['listeners'] = listeners.length;
-                                winston.info("Added listener: " + request.ip);
+                                if (stats.peaks.listeners < listeners.length)
+                                    stats.peaks.listeners = listeners.length;
+                                logger.info("Added listener: " + request.ip);
                             }
                             break;
                         case "HEAD":
@@ -201,11 +204,11 @@ var run = function() {
                 case "/":
                     response.write(JSON.stringify({
                         listeners: listeners.length,
-                        bytes_in_month: bytes_in_month,
-                        bytes_out_month: bytes_out_month,
+                        bytes_in_month: stats.bytes_in_month,
+                        bytes_out_month: stats.bytes_out_month,
                         started_at: started,
                         config: config,
-                        peaks: peaks
+                        peaks: stats.peaks
                     }));
                     response.end();
                     break;
@@ -228,9 +231,9 @@ var run = function() {
                     break;
             }
         } catch (err) {
-            winston.error(err);
+            logger.error(err);
         }
-    }).listen(config.port);
+    }).listen(process.env.PORT || config.port);
 }
 
 switch (process.argv[2]) {

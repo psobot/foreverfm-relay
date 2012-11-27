@@ -1,0 +1,19 @@
+{
+    "listener_limit": 200,
+    "max_monthly_transfer": 2199023255552,
+
+    "relay_provider": "Peter Sobot",
+    "relay_attribution_link": "http://psobot.com",
+    "relay_location": "New York, NY",
+
+    "relay_url": "http://relay00.forever.fm",
+    "relay_port": 80,
+
+    "port": 8192,
+    "timeout": 1000,
+
+    "heartbeat_required": true,
+    "heartbeat_interval": 30000,
+
+    "save_interval": 10000
+}
