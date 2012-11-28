@@ -5,6 +5,7 @@ var config = require('./config.json');
 var stats = require('./stats.json');
 
 var http = require('http');
+var url = require('url');
 var fs = require('fs');
 var winston = require('winston');
 var daemon = require("daemonize2").setup({
@@ -152,16 +153,23 @@ var prune = function() {
     limit = (+new Date) - config.heartbeat_interval;
     remove = [];
     for (l in listeners) {
-        if (listeners[l].last_heartbeat && listeners[l].last_heartbeat < limit) {
+        if (listeners[l].last_heartbeat != null) {
+            if (listeners[l].last_heartbeat < limit) {
+                logger.info(listeners[l].last_heartbeat);
+                logger.info("Listener " + listeners[l].ip + " has missed a heartbeat.");
+                remove.push(listeners[l]);
+            }
+        } else if (listeners[l].checked) {
+            logger.info("Listener " + listeners[l].ip + " has not provided any heartbeats.");
             remove.push(listeners[l]);
         }
+        listeners[l].checked = true;
     }
     if (remove.length > 0)
-        logger.info("Removing " + remove.length + " listeners due to heartbeat failure.");
+        logger.info("Removing " + remove.length + " listeners.");
 
     for (r in remove) {
         remove[r].end();
-        logger.info("Forcibly removing listener: " + remove[r].ip);
         listeners.splice(listeners.indexOf(remove[r]), 1);
     }
 }
@@ -169,7 +177,6 @@ var prune = function() {
 var save = function() {
     fs.writeFile("./stats.json", JSON.stringify(stats), function(err) {
         if (err) logger.error("Could not save statistics due to: " + err);
-        else logger.info("Saved statistics.");
     });
 }
 
@@ -224,15 +231,21 @@ var run = function() {
                     response.end();
                     break;
                 default:
-                    if ( config.heartbeat_required ) {
-                        for (l in listeners) {
-                            if (listeners[l].ip == request.ip) {
-                                listeners[l].last_heartbeat = (+new Date);
-                                break;
+                    if ( request.url.indexOf("/heartbeat") == 0 ) {
+                        if ( config.heartbeat_required ) {
+                            for (l in listeners) {
+                                if (listeners[l].ip == request.ip) {
+                                    listeners[l].last_heartbeat = (+new Date);
+                                    break;
+                                }
                             }
                         }
+                        response.writeHead(200, {'Content-Type': 'text/javascript'});
+                        callback = url.parse(request.url, true).query.callback;
+                        if (callback) response.write(callback + "(" + config.heartbeat_required + ");");
+                    } else {
+                        response.writeHead(404);
                     }
-                    response.writeHead(200);
                     response.end();
                     break;
             }
