@@ -26,7 +26,7 @@ var options = {
     }
 };
 var listeners = [];
-var started = +new Date;
+var started = +new Date; 
 if (stats.month < 0) stats.month = (new Date()).getMonth()
 
 var crossdomain = "";
@@ -45,6 +45,8 @@ var transfer_exceeded = function() {
     __transfer_exceeded = stats.bytes_out_month > config.max_monthly_transfer;
     return __transfer_exceeded;
 }
+
+var shutdown = false;
 
 var logger = new (winston.Logger)({
     transports: [
@@ -134,9 +136,9 @@ var ipof = function(req) {
 };
 
 var available = function(response) {
-    if ( transfer_exceeded() ) {
-        logger.error("Max transfer exceeded: returning 301.");
-        response.writeHead(301, {'Location': "http://" + options.hostname + options.path})
+    if ( transfer_exceeded() || shutdown ) {
+        logger.warning("Returning 301, redirecting to " + config.redirect + ".");
+        response.writeHead(301, {'Location': config.redirect})
         response.end();
         return false;
     }
@@ -177,6 +179,22 @@ var prune = function() {
 var save = function() {
     fs.writeFile("./stats.json", JSON.stringify(stats), function(err) {
         if (err) logger.error("Could not save statistics due to: " + err);
+    });
+
+    fs.stat("./shutdown.txt", function( err, stats ) {
+        if ( err != null || stats == null ) {
+            logger.error("Could not fstat shutdown.txt.");
+            return;
+        }
+        if ( ( +new Date( stats.mtime ) ) > started ) {
+            if ( !shutdown ) {
+                logger.info("Initiating shutdown due to shutdown.txt modification!");
+                shutdown = true;
+            } else if ( listeners.length == 0 ) {
+                logger.info("Zero listeners. Shutting down. Goodbye!");
+                process.exit(0);
+            }
+        }
     });
 }
 

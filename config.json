@@ -12,8 +12,9 @@
     "port": 8192,
     "timeout": 1000,
 
-    "heartbeat_required": true,
+    "heartbeat_required": false,
     "heartbeat_interval": 30000,
 
-    "save_interval": 10000
+    "save_interval": 1000,
+    "redirect": "http://relay05.forever.fm/all.mp3"
 }
