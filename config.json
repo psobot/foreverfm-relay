@@ -8,6 +8,7 @@
 
     "relay_url": "http://relay00.forever.fm",
     "relay_port": 80,
+    "relay_weight": 1,
 
     "port": 8192,
     "timeout": 1000,

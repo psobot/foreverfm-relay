@@ -22,7 +22,8 @@ var options = {
       "Connection": "keep-alive",
       'User-Agent': 'foreverfm-relay',
       'X-Relay-Addr': process.env.RELAY_URL || config.relay_url,
-      'X-Relay-Port': config.relay_port
+      'X-Relay-Port': config.relay_port,
+      'X-Relay-Weight': config.relay_weight
     }
 };
 var listeners = [];
