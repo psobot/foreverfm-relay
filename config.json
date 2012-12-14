@@ -8,7 +8,7 @@
 
     "relay_url": "http://relay00.forever.fm",
     "relay_port": 80,
-    "relay_weight": 1,
+    "relay_weight": 10,
 
     "port": 8192,
     "timeout": 1000,
@@ -17,5 +17,6 @@
     "heartbeat_interval": 30000,
 
     "save_interval": 1000,
+    "max_packet_delay": 1000,
     "redirect": "http://relay05.forever.fm/all.mp3"
 }
