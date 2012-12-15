@@ -87,51 +87,59 @@ var check = function(callback) {
 
 var listen = function(callback) {
     logger.info("Attempting to listen to generator...");
-    req = http.request(options, function (res) {
-        if ( res.statusCode != 200 ) {
-            logger.error("OH NOES: Got a " + res.statusCode);
-            setTimeout(function(){listen(callback)}, config.timeout);
-        } else {
-            logger.info("Listening to generator!")
-            dead = null;
-            res.on('data', function (buf) {
-                try {
-                    if ( dead != null ) clearTimeout(dead);
+    while ( true ) {
+        try {
+            req = http.request(options, function (res) {
+                if ( res.statusCode != 200 ) {
+                    logger.error("OH NOES: Got a " + res.statusCode);
+                    setTimeout(function(){listen(callback)}, config.timeout);
+                } else {
+                    logger.info("Listening to generator!")
+                    dead = null;
+                    res.on('data', function (buf) {
+                        try {
+                            if ( dead != null ) clearTimeout(dead);
 
-                    stats.bytes_in_month += buf.length;
-                    for (l in listeners) {
-                        listeners[l].write(buf);
-                        stats.bytes_out_month += buf.length;
-                        if (stats.peaks.bytes_out_month < stats.bytes_out_month)
-                            stats.peaks.bytes_out_month = stats.bytes_out_month;
-                    }
+                            stats.bytes_in_month += buf.length;
+                            for (l in listeners) {
+                                listeners[l].write(buf);
+                                stats.bytes_out_month += buf.length;
+                                if (stats.peaks.bytes_out_month < stats.bytes_out_month)
+                                    stats.peaks.bytes_out_month = stats.bytes_out_month;
+                            }
 
-                    if ( __transfer_exceeded ) {
-                        logger.error("Maximum uplink exceeded! Shutting off.");
-                        for (l in listeners) listeners[l].end();
-                        req.destroy();
-                    }
+                            if ( __transfer_exceeded ) {
+                                logger.error("Maximum uplink exceeded! Shutting off.");
+                                for (l in listeners) listeners[l].end();
+                                req.destroy();
+                            }
 
-                    dead = setTimeout( function() {
-                        logger.error("Haven't received a packet in more than "
-                                     + config.max_packet_delay + "ms! Restarting listener...");
-                        req.destroy();
-                    }, config.max_packet_delay );
+                            dead = setTimeout( function() {
+                                logger.error("Haven't received a packet in more than "
+                                             + config.max_packet_delay + "ms! Restarting listener...");
+                                req.destroy();
+                            }, config.max_packet_delay );
 
-                } catch (err) {
-                    logger.error("Could not send to listeners: " + err);
+                        } catch (err) {
+                            logger.error("Could not send to listeners: " + err);
+                        }
+                    });
+                    res.on('end', function () {
+                        if ( !transfer_exceeded() ) {
+                            logger.error("Stream ended! Restarting listener...");
+                            setTimeout(function(){listen(function(){})}, config.timeout);
+                        }
+                    });
+                    if (typeof callback != "undefined") callback();
                 }
-            });
-            res.on('end', function () {
-                if ( !transfer_exceeded() ) {
-                    logger.error("Stream ended! Restarting listener...");
-                    setTimeout(function(){listen(function(){})}, config.timeout);
-                }
-            });
-            if (typeof callback != "undefined") callback();
+            })
+            req.end();
+            break;
+        } catch (err) {
+            logger.error("Could not connect! Retrying.");
+            logger.error(err);
         }
-    })
-    req.end();
+    }
 }
 
 var ipof = function(req) {

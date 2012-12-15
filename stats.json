@@ -1,9 +1,1 @@
-{
-    "bytes_in_month": 0,
-    "bytes_out_month": 0,
-    "month": -1,
-    "peaks": {
-        "listeners": 0,
-        "bytes_out_month": 0
-    }
-}
+{"bytes_in_month":45719,"bytes_out_month":0,"month":11,"peaks":{"listeners":0,"bytes_out_month":0}}
