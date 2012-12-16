@@ -133,6 +133,11 @@ var listen = function(callback) {
                     if (typeof callback != "undefined") callback();
                 }
             })
+            req.on('error', function(error) {
+                logger.error("Could not connect! Retrying...");
+                logger.error(error);
+                setTimeout(function(){listen(function(){})}, config.timeout);
+            });
             req.end();
             break;
         } catch (err) {
