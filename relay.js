@@ -89,6 +89,7 @@ var listen = function(callback) {
     logger.info("Attempting to listen to generator...");
     while ( true ) {
         try {
+            req = null;
             req = http.request(options, function (res) {
                 if ( res.statusCode != 200 ) {
                     logger.error("OH NOES: Got a " + res.statusCode);
@@ -250,6 +251,7 @@ var run = function() {
     setInterval( save, config.save_interval );
 
     http.createServer(function(request, response) {
+      
         requestip = ipof(request);
         response.ip = requestip;
         try {
@@ -261,14 +263,15 @@ var run = function() {
                                 response.writeHead(200, {'Content-Type': 'audio/mpeg'});
                                 response.on('close', function () {
                                     logger.info("Removed listener: " + requestip);
-                                    listeners.splice(listeners.indexOf(response), 1);
+                                    delete listeners[listeners.indexOf(response)];
+                                    listeners.splice(listeners.indexOf(undefined), 1);
                                     onRemoveListener(requestip);
                                     response = null;
                                 });
                                 listeners.push(response);
                                 if (stats.peaks.listeners < listeners.length)
                                     stats.peaks.listeners = listeners.length;
-                                logger.info("Added listener: " + requestip);
+                                logger.info("Added listener (now at " + listeners.length + "): " + requestip);
                                 onAddListener(requestip);
                             }
                             break;
@@ -321,4 +324,3 @@ switch (process.argv[2]) {
           run();
         });
 }
-
