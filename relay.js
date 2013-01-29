@@ -101,12 +101,6 @@ var listen = function(callback) {
                     logger.info("Listening to generator!")
                     dead = null;
 
-                    //  Re-report any listeners to the generator
-                    for (l in listeners) {
-                        onRemoveListener(l.ip);
-                        onAddListener(l.ip);
-                    }
-
                     res.on('data', function (buf) {
                         try {
                             if ( dead != null ) clearTimeout(dead);
@@ -208,45 +202,6 @@ var save = function() {
     });
 }
 
-var onAddListener =    function(ip) { sendUpstream("add", ip);    }
-var onRemoveListener = function(ip) { sendUpstream("remove", ip); }
-
-var sendUpstream = function(action, ip) {
-  try {
-      data = querystring.stringify({
-        action: action,
-        listener_ip: ip,
-      });
-      req = http.request({
-          hostname: process.env.URL || "forever.fm",
-          path: "/all.mp3", //  This should eventually be a better endpoint
-          port: 80,
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/x-www-form-urlencoded',
-            'Content-Length': data.length,
-            'User-Agent': 'foreverfm-relay',
-            'X-Relay-Addr': process.env.RELAY_URL || config.relay_url,
-            'X-Relay-Port': config.relay_port,
-            'X-Relay-Weight': config.relay_weight
-          },
-      }, function (res) {
-          if ( res.statusCode != 200 ) {
-              logger.error("OH NOES: Got a " + res.statusCode);
-          }
-      })
-      req.on('error', function(error) {
-          logger.error("Could not send listener info upstream!");
-          logger.error(error);
-      });
-      req.write(data);
-      req.end();
-  } catch (err) {
-      logger.error("Could not send listener info upstream!");
-      logger.error(err);
-  }
-}
-
 var cube_log = function() {
     var client = cube.emitter("udp://" + config.cube_host);
     client.send({
@@ -276,7 +231,7 @@ var run = function() {
                                 response.writeHead(200, {'Content-Type': 'audio/mpeg'});
                                 response.on('close', function () {
                                     try {
-                                        onRemoveListener(requestip);
+                                        cube_log();
                                         logger.info("Removed listener: " + requestip);
                                         delete listeners[listeners.indexOf(response)];
                                         listeners.splice(listeners.indexOf(undefined), 1);
@@ -289,7 +244,7 @@ var run = function() {
                                 if (stats.peaks.listeners < listeners.length)
                                     stats.peaks.listeners = listeners.length;
                                 logger.info("Added listener (now at " + listeners.length + "): " + requestip);
-                                onAddListener(requestip);
+                                cube_log();
                             }
                             break;
                         case "HEAD":
