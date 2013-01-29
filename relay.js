@@ -262,11 +262,15 @@ var run = function() {
                             if (available(response)) { 
                                 response.writeHead(200, {'Content-Type': 'audio/mpeg'});
                                 response.on('close', function () {
-                                    logger.info("Removed listener: " + requestip);
-                                    delete listeners[listeners.indexOf(response)];
-                                    listeners.splice(listeners.indexOf(undefined), 1);
-                                    onRemoveListener(requestip);
-                                    response = null;
+                                    try {
+                                        onRemoveListener(requestip);
+                                        logger.info("Removed listener: " + requestip);
+                                        delete listeners[listeners.indexOf(response)];
+                                        listeners.splice(listeners.indexOf(undefined), 1);
+                                        response = null;
+                                    } catch (err) {
+                                        logger.error("Could not properly remove listener: " + err);
+                                    }
                                 });
                                 listeners.push(response);
                                 if (stats.peaks.listeners < listeners.length)
