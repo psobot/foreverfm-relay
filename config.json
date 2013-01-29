@@ -1,22 +1,22 @@
 {
     "listener_limit": 200,
-    "max_monthly_transfer": 2199023255552,
+    "max_monthly_transfer": 10995116277760,
 
-    "relay_provider": "Heroku",
-    "relay_attribution_link": "http://heroku.com",
-    "relay_location": "Heroku",
+    "relay_provider": "50TBCloud",
+    "relay_attribution_link": "http://50tbcloud.com",
+    "relay_location": "Chicago",
 
-    "relay_url": "http://relay00.forever.fm",
+    "relay_url": "http://relay.forever.fm",
     "relay_port": 80,
     "relay_weight": 10,
 
     "port": 8192,
     "timeout": 1000,
 
-    "heartbeat_required": false,
-    "heartbeat_interval": 30000,
-
     "save_interval": 1000,
     "max_packet_delay": 1000,
-    "redirect": "http://relay05.forever.fm/all.mp3"
+    "redirect": "http://relay.forever.fm/all.mp3",
+
+    "cube_host": "localhost:1180",
+    "cube_interval": 1000
 }

@@ -2,12 +2,13 @@
 //  Simple, lightweight, untested.
 var config = require('./config.json');
 var stats = require('./stats.json');
-
+var cube = require('cube');
 var http = require('http');
 var url = require('url');
 var fs = require('fs');
 var querystring = require('querystring');
 var winston = require('winston');
+
 var daemon = require("daemonize2").setup({
     main: "relay.js",
     name: "relay",
@@ -26,8 +27,10 @@ var options = {
       'X-Relay-Weight': config.relay_weight
     }
 };
+
 var listeners = [];
-var started = +new Date; 
+var started = +new Date;
+
 if (stats.month < 0) stats.month = (new Date()).getMonth()
 
 var crossdomain = "";
@@ -127,7 +130,6 @@ var listen = function(callback) {
                                              + config.max_packet_delay + "ms! Restarting listener...");
                                 req.destroy();
                             }, config.max_packet_delay );
-
                         } catch (err) {
                             logger.error("Could not send to listeners: " + err);
                         }
@@ -245,13 +247,24 @@ var sendUpstream = function(action, ip) {
   }
 }
 
+var cube_log = function() {
+    var client = cube.emitter("udp://" + config.cube_host);
+    client.send({
+      type: "listeners",
+      time: new Date(),
+      data: {count: listeners.length}
+    });
+    client.close();
+}
+
 var run = function() {
     logger.info("Starting server.")
 
     setInterval( save, config.save_interval );
 
+    if ( config.cube_host != null ) setInterval( cube_log, config.cube_interval );
+
     http.createServer(function(request, response) {
-      
         requestip = ipof(request);
         response.ip = requestip;
         try {
