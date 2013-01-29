@@ -96,6 +96,13 @@ var listen = function(callback) {
                 } else {
                     logger.info("Listening to generator!")
                     dead = null;
+
+                    //  Re-report any listeners to the generator
+                    for (l in listeners) {
+                        onRemoveListener(l.ip);
+                        onAddListener(l.ip);
+                    }
+
                     res.on('data', function (buf) {
                         try {
                             if ( dead != null ) clearTimeout(dead);
@@ -244,6 +251,7 @@ var run = function() {
 
     http.createServer(function(request, response) {
         requestip = ipof(request);
+        response.ip = requestip;
         try {
             switch (request.url) {
                 case "/all.mp3":
