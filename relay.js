@@ -1,12 +1,12 @@
 //  Forever.fm relay server
 //  Simple, lightweight, untested.
-
 var config = require('./config.json');
 var stats = require('./stats.json');
 
 var http = require('http');
 var url = require('url');
 var fs = require('fs');
+var querystring = require('querystring');
 var winston = require('winston');
 var daemon = require("daemonize2").setup({
     main: "relay.js",
@@ -176,31 +176,6 @@ var available = function(response) {
     return true;
 }
 
-var prune = function() {
-    limit = (+new Date) - config.heartbeat_interval;
-    remove = [];
-    for (l in listeners) {
-        if (listeners[l].last_heartbeat != null) {
-            if (listeners[l].last_heartbeat < limit) {
-                logger.info(listeners[l].last_heartbeat);
-                logger.info("Listener " + listeners[l].ip + " has missed a heartbeat.");
-                remove.push(listeners[l]);
-            }
-        } else if (listeners[l].checked) {
-            logger.info("Listener " + listeners[l].ip + " has not provided any heartbeats.");
-            remove.push(listeners[l]);
-        }
-        listeners[l].checked = true;
-    }
-    if (remove.length > 0)
-        logger.info("Removing " + remove.length + " listeners.");
-
-    for (r in remove) {
-        remove[r].end();
-        listeners.splice(listeners.indexOf(remove[r]), 1);
-    }
-}
-
 var save = function() {
     fs.writeFile("./stats.json", JSON.stringify(stats), function(err) {
         if (err) logger.error("Could not save statistics due to: " + err);
@@ -223,15 +198,52 @@ var save = function() {
     });
 }
 
+var onAddListener =    function(ip) { sendUpstream("add", ip);    }
+var onRemoveListener = function(ip) { sendUpstream("remove", ip); }
+
+var sendUpstream = function(action, ip) {
+  try {
+      data = querystring.stringify({
+        action: action,
+        listener_ip: ip,
+      });
+      req = http.request({
+          hostname: process.env.URL || "forever.fm",
+          path: "/all.mp3", //  This should eventually be a better endpoint
+          port: 80,
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/x-www-form-urlencoded',
+            'Content-Length': data.length,
+            'User-Agent': 'foreverfm-relay',
+            'X-Relay-Addr': process.env.RELAY_URL || config.relay_url,
+            'X-Relay-Port': config.relay_port,
+            'X-Relay-Weight': config.relay_weight
+          },
+      }, function (res) {
+          if ( res.statusCode != 200 ) {
+              logger.error("OH NOES: Got a " + res.statusCode);
+          }
+      })
+      req.on('error', function(error) {
+          logger.error("Could not send listener info upstream!");
+          logger.error(error);
+      });
+      req.write(data);
+      req.end();
+  } catch (err) {
+      logger.error("Could not send listener info upstream!");
+      logger.error(err);
+  }
+}
+
 var run = function() {
     logger.info("Starting server.")
 
-    if ( config.heartbeat_required ) setInterval( prune, config.heartbeat_interval );
     setInterval( save, config.save_interval );
 
     http.createServer(function(request, response) {
-        request.ip = ipof(request);
-        response.ip = request.ip;
+        requestip = ipof(request);
         try {
             switch (request.url) {
                 case "/all.mp3":
@@ -240,13 +252,16 @@ var run = function() {
                             if (available(response)) { 
                                 response.writeHead(200, {'Content-Type': 'audio/mpeg'});
                                 response.on('close', function () {
-                                    logger.info("Removed listener: " + request.ip);
+                                    logger.info("Removed listener: " + requestip);
                                     listeners.splice(listeners.indexOf(response), 1);
+                                    onRemoveListener(requestip);
+                                    response = null;
                                 });
                                 listeners.push(response);
                                 if (stats.peaks.listeners < listeners.length)
                                     stats.peaks.listeners = listeners.length;
-                                logger.info("Added listener: " + request.ip);
+                                logger.info("Added listener: " + requestip);
+                                onAddListener(requestip);
                             }
                             break;
                         case "HEAD":
@@ -263,35 +278,17 @@ var run = function() {
                     response.end();
                     break;
                 default:
-                    if ( request.url.indexOf("/heartbeat") == 0 ) {
-                        if ( config.heartbeat_required ) {
-                            for (l in listeners) {
-                                if (listeners[l].ip == request.ip) {
-                                    listeners[l].last_heartbeat = (+new Date);
-                                    break;
-                                }
-                            }
-                        }
-                        response.writeHead(200, {'Content-Type': 'text/javascript'});
-                        callback = url.parse(request.url, true).query.callback;
-                        if (callback) response.write(callback + "(" + config.heartbeat_required + ");");
-                    } else if ( request.url == "/" || request.url.indexOf("/?") == 0 ) {
-                        data = JSON.stringify({
-                            listeners: listeners.length,
-                            bytes_in_month: stats.bytes_in_month,
-                            bytes_out_month: stats.bytes_out_month,
-                            started_at: started,
-                            config: config,
-                            peaks: stats.peaks
-                        });
-                        callback = url.parse(request.url, true).query.callback;
-                        if (callback) response.write(callback + "(" + data + ");");
-                        else response.write(data);
-                        response.end();
-                        break;
-                    } else {
-                        response.writeHead(404);
-                    }
+                    data = JSON.stringify({
+                        listeners: listeners.length,
+                        bytes_in_month: stats.bytes_in_month,
+                        bytes_out_month: stats.bytes_out_month,
+                        started_at: started,
+                        config: config,
+                        peaks: stats.peaks
+                    });
+                    callback = url.parse(request.url, true).query.callback;
+                    if (callback) response.write(callback + "(" + data + ");");
+                    else response.write(data);
                     response.end();
                     break;
             }
